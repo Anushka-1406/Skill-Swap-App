@@ -17,35 +17,43 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
 
   const handleLogin = async () => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
+  try {
+    console.log("Logging in with:", email, password);
+    await signInWithEmailAndPassword(auth, email, password);
     navigation.navigate("Home");
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  } catch (err) {
+    console.log("Login error:", err);
+    setError(err.message);
+  }
+};
 
-  const handleSignUp = async () => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+const handleSignUp = async () => {
+  try {
+    if (!name || !teachSkill || !learnSkill || !email || !password) {
+      setError("Please fill all fields.");
+      return;
+    }
+
+    console.log("Signing up with:", email, password);
+
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    //✅ Store additional user info in Firestore
     await setDoc(doc(db, "users", user.uid), {
       name,
-      teachSkill,
-      learnSkill,
+      teachSkill: teachSkill.split(",").map((s) => s.trim()).filter(Boolean),
+      learnSkill: learnSkill.split(",").map((s) => s.trim()).filter(Boolean),
       email,
       createdAt: new Date(),
     });
 
     alert("Account created and data saved!");
-
-      // You can also store name, teachSkill, learnSkill in Firestore here
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+    navigation.navigate("Home");
+  } catch (err) {
+    console.log("Signup error:", err);
+    setError(err.message);
+  }
+};
 
   return (
     <View style={[styles.container, { backgroundColor: "#f0f4ff" }]}>

@@ -1,66 +1,110 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, FlatList } from "react-native";
+import { View, Text, StyleSheet, Alert } from "react-native";
 import { auth, db } from "../firebaseconfig";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import Swiper from "react-native-deck-swiper";
+import { Ionicons } from "@expo/vector-icons";
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const [userName, setUserName] = useState("");
   const [matches, setMatches] = useState([]);
+  const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-  const currentUser = auth.currentUser;
+    const currentUser = auth.currentUser;
 
-  const fetchUserData = async () => {
-    if (currentUser) {
-      try {
-        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-        if (userDoc.exists()) {
-          setUserName(userDoc.data().name); // ✅ use Firestore name
-        } else {
-          setUserName(currentUser.email); // fallback if no name stored
+    const fetchUserData = async () => {
+      if (currentUser) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          if (userDoc.exists()) {
+            setUserName(userDoc.data().name);
+          } else {
+            setUserName(currentUser.email);
+          }
+        } catch (err) {
+          console.log("Error fetching user data:", err);
+          setUserName(currentUser.email);
         }
-      } catch (err) {
-        console.log("Error fetching user data:", err);
-        setUserName(currentUser.email);
       }
+    };
+
+    const fetchMatches = async () => {
+      const querySnapshot = await getDocs(collection(db, "users"));
+      const allUsers = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.email !== currentUser?.email) {
+          allUsers.push(data);
+        }
+      });
+      setMatches(allUsers);
+    };
+
+    fetchUserData();
+    fetchMatches();
+  }, []);
+
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: "row", marginRight: 20 }}>
+          <Ionicons
+            name="person-circle-outline"
+            size={28}
+            color="#333"
+            style={{ marginRight: 20 }}
+            onPress={() => navigation.navigate("Account")}
+          />
+          <Ionicons
+            name="chatbubble-ellipses-outline"
+            size={28}
+            color="#333"
+            onPress={() => navigation.navigate("Messages", { messages })}
+          />
+        </View>
+      ),
+    });
+  }, [navigation, messages]);
+
+  const handleSwipeRight = (cardIndex) => {
+    const person = matches[cardIndex];
+    if (person) {
+      const msg = `Message sent: ${person.name} is interested in learning with you.`;
+      Alert.alert("Match!", msg);
+      setMessages((prev) => [...prev, msg]);
     }
   };
-
-  const fetchMatches = async () => {
-    const querySnapshot = await getDocs(collection(db, "users"));
-    const allUsers = [];
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (data.email !== currentUser?.email) {
-        allUsers.push(data);
-      }
-    });
-    setMatches(allUsers);
-  };
-
-  fetchUserData();
-  fetchMatches();
-}, []);
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Skill Swap</Text>
       <Text style={styles.welcome}>Welcome back, {userName}!</Text>
-      <Text style={styles.subheader}>💡 People who can teach what you want to learn</Text>
+      <Text style={styles.subheader}>💡 Swipe to find people to learn/teach</Text>
 
-      <FlatList
-        data={matches}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.label}>💡 Can teach:</Text>
-            <Text style={styles.skill}>{item.teachSkill}</Text>
-            <Text style={styles.label}>📘 Wants to learn:</Text>
-            <Text style={styles.skill}>{item.learnSkill}</Text>
-          </View>
-        )}
-      />
+      {matches.length > 0 ? (
+        <Swiper
+          cards={matches}
+          renderCard={(item) => (
+            <View style={styles.card}>
+              <Text style={styles.name}>{item.name}</Text>
+              <Text style={styles.label}>💡 Can teach:</Text>
+              <Text style={styles.skill}>
+                {Array.isArray(item.teachSkill) ? item.teachSkill.join(", ") : item.teachSkill}
+              </Text>
+              <Text style={styles.label}>📘 Wants to learn:</Text>
+              <Text style={styles.skill}>
+                {Array.isArray(item.learnSkill) ? item.learnSkill.join(", ") : item.learnSkill}
+              </Text>
+            </View>
+          )}
+          onSwipedRight={handleSwipeRight}
+          backgroundColor={"#f0f4ff"}
+          stackSize={3}
+        />
+      ) : (
+        <Text style={{ marginTop: 20 }}>No matches found.</Text>
+      )}
     </View>
   );
 }
